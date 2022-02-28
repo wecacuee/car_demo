@@ -6,6 +6,7 @@
   <param name="robot_description" textfile="$(arg model)"/>
 
   <include file="$(find gazebo_ros)/launch/empty_world.launch">
+    <env name="LIBGL_ALWAYS_SOFTWARE"  value="1"  />
     <arg name="verbose" value="true"/>
     <arg name="world_name" value="$(find car_demo)/worlds/mcity-light.world"/>
     <arg name="gui"  value="true" />

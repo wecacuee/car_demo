@@ -21,7 +21,7 @@ from sensor_msgs.msg import Joy
 
 
 STEERING_AXIS = 0
-THROTTLE_AXIS = 4
+THROTTLE_AXIS = 1
 
 
 class Translator:

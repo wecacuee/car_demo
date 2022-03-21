@@ -16,7 +16,13 @@
  */
 
 /**
- * Convert ros image_msg to eigen
+ * Convert ROS's sensor_msgs::Image::ConstPtr to Eigen's Eigen::MatrixXd
+ *
+ * Example usage: (if msg is of type sensor_msgs::Image::ConstPtr):
+
+ *  Eigen::MatrixXd eigen_image;
+ *  convert_image_msg_to_eigen(msg, eigen_image);
+
  */
 void
 convert_image_msg_to_eigen(const sensor_msgs::Image::ConstPtr& msg,
@@ -41,15 +47,25 @@ convert_image_msg_to_eigen(const sensor_msgs::Image::ConstPtr& msg,
     gray_image.convertTo(gray_image_double, CV_64FC1);
     gray_image_double /= 255.0;
 
+    // OpenCV -> Eigen
     cv::cv2eigen(gray_image_double,  returned_eigen_image);
 }
 
+/**
+ * This function visualizes the Eigen image.
+ *
+ * Example  usage:
+ *
+ * eigen_imshow(eigen_image);
+ *
+ */
 void
 eigen_imshow(const Eigen::MatrixXd& img) {
+    // Eigen -> OpenCV
     cv::Mat cv_img;
     cv::eigen2cv(img, cv_img);
 
-    cv::imshow("IMG", cv_img); // Normalized image is good for visualization
+    cv::imshow("IMG", cv_img);
     cv::waitKey(10);
 }
 

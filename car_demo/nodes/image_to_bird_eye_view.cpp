@@ -1,5 +1,7 @@
 #include "ros/ros.h"
 #include "sensor_msgs/Image.h"
+#include <iostream>
+#include <cstdlib>
 
 // sudo apt install libeigen3-dev ros-noetic-cv-bridge
 // Additional header files  required  for conversion
@@ -60,25 +62,68 @@ convert_image_msg_to_eigen(const sensor_msgs::Image::ConstPtr& msg,
  *
  */
 void
-eigen_imshow(const Eigen::MatrixXd& img) {
+eigen_imshow(const Eigen::MatrixXd& img,
+             const std::string& winname = "IMG",
+             const int duration = 10  // in milliseconds
+    ) {
     // Eigen -> OpenCV
     cv::Mat cv_img;
     cv::eigen2cv(img, cv_img);
 
-    cv::imshow("IMG", cv_img);
-    cv::waitKey(10);
+    cv::imshow(winname, cv_img);
+    cv::waitKey(duration);
+}
+
+double drand() {
+    return std::rand()  / double(RAND_MAX);
 }
 
 void chatterCallback(const sensor_msgs::Image::ConstPtr& msg)
 {
-  ROS_INFO("Image height: [%d]", msg->height);
-  ROS_INFO("Image width: [%d]", msg->width);
-  ROS_INFO("Image encoding: [%d]", msg->width);
-
+    // ROS_INFO("Image height: [%d]", msg->height);
+    // ROS_INFO("Image width: [%d]", msg->width);
+    // ROS_INFO("Image encoding: [%d]", msg->width);
   Eigen::MatrixXd eigen_image;
   convert_image_msg_to_eigen(msg, eigen_image);
 
   eigen_imshow(eigen_image);
+
+  Eigen::MatrixXd birds_eye_view_image(eigen_image.rows(),
+                                       eigen_image.cols());
+  birds_eye_view_image.setZero();
+
+  double camera_height = 1.4; // meters
+  Eigen::Matrix3d K;
+  K << 476.7030836014194, 0.0, 400.5, 0.0, 476.7030836014194, 400.5, 0.0, 0.0, 1.0;
+  Eigen::Matrix3d Kinv = K.inverse();
+  Eigen::Matrix3d R;
+  R << 1, 0, 0,
+      0, 0, 1,
+      0, -1, 0;
+  Eigen::Vector3d t;
+  t << 0, -10*camera_height, 10*camera_height;
+  Eigen::MatrixXd KRKinv = K * R * Kinv;
+  Eigen::Vector3d Kt =  K*t;
+  Eigen::Vector3d u_bev;
+  for (int bev_row = 0; bev_row < birds_eye_view_image.rows(); ++bev_row) {
+      for (int bev_col = 0; bev_col < birds_eye_view_image.cols(); ++bev_col)  {
+          u_bev << bev_col + 0.5, bev_row + 0.5, 1;
+          // Eigen::Vector3d lambda_X_bev = Kinv * u_bev;
+          // Eigen::Vector3d X_bev = lambda_X_bev / lambda_X_bev(2) * (-t(1)+camera_height);
+          // Eigen::Vector3d X = R * X_bev + t;
+          auto lambda_u = KRKinv * u_bev * (-t(1)+camera_height) / (Kinv.row(2)*u_bev) + Kt;
+          Eigen::Vector3d u = lambda_u / lambda_u(2);
+          int col = (int) u(0);
+          int row = (int) u(1);
+          if (0 <= row &&  row < eigen_image.rows()
+              &&  0 <= col &&  col < eigen_image.cols()) {
+              birds_eye_view_image(bev_row, bev_col) = eigen_image(row, col);
+          }
+      }
+  }
+
+  eigen_imshow(birds_eye_view_image, "BEV");
+
 }
 
 int main(int argc, char **argv)
@@ -117,7 +162,7 @@ int main(int argc, char **argv)
    * is the number of messages that will be buffered up before beginning to throw
    * away the oldest ones.
    */
-  ros::Subscriber sub = n.subscribe("/prius/front_camera/image_raw", 1000, chatterCallback);
+  ros::Subscriber sub = n.subscribe("/prius/front_camera/image_raw", 1, chatterCallback);
 
   /**
    * ros::spin() will enter a loop, pumping callbacks.  With this version, all

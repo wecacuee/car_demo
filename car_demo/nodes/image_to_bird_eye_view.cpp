@@ -73,7 +73,7 @@ void chatterCallback(const sensor_msgs::Image::ConstPtr& msg)
 {
   ROS_INFO("Image height: [%d]", msg->height);
   ROS_INFO("Image width: [%d]", msg->width);
-  ROS_INFO("Image encoding: [%d]", msg->width);
+  ROS_INFO("Image encoding: [%s]", msg->encoding.c_str());
 
   Eigen::MatrixXd eigen_image;
   convert_image_msg_to_eigen(msg, eigen_image);

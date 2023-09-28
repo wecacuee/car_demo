@@ -11,6 +11,7 @@
 #include <opencv2/imgproc.hpp>
 #include <opencv2/core/eigen.hpp>
 #include <opencv2/highgui.hpp>
+#include "opencv2/stitching.hpp"
 
 
 /**
@@ -78,7 +79,16 @@ double drand() {
     return std::rand()  / double(RAND_MAX);
 }
 
-void chatterCallback(const sensor_msgs::Image::ConstPtr& msg)
+class ImageStitchCallback
+{
+public:
+    void imageCallback(const sensor_msgs::Image::ConstPtr& msg);
+private:
+    cv::Mat stitched_image_;
+};
+
+void ImageStitchCallback::imageCallback(
+    const sensor_msgs::Image::ConstPtr& msg)
 {
     // ROS_INFO("Image height: [%d]", msg->height);
     // ROS_INFO("Image width: [%d]", msg->width);
@@ -122,7 +132,23 @@ void chatterCallback(const sensor_msgs::Image::ConstPtr& msg)
       }
   }
 
-  eigen_imshow(birds_eye_view_image, "BEV");
+  if (stitched_image_.empty()) {
+      cv::eigen2cv(birds_eye_view_image, stitched_image_);
+  } else {
+      using namespace cv;
+      Ptr<Stitcher> stitcher = cv::Stitcher::create(cv::Stitcher::PANORAMA);
+      std::vector<Mat> imgs;
+
+      Mat birds_eye_view_image_cv;
+      cv::eigen2cv(birds_eye_view_image, birds_eye_view_image_cv);
+      imgs.push_back(birds_eye_view_image_cv);
+      imgs.push_back(stitched_image_);
+      Stitcher::Status status = stitcher->stitch(birds_eye_view_image_cv,
+                                                 stitched_image_);
+      eigen_imshow(birds_eye_view_image, "BEV");
+      cv:imshow("ST", stitched_image_);
+      cv::waitKey(100);
+  }
 
 }
 
@@ -152,7 +178,7 @@ int main(int argc, char **argv)
    * on a given topic.  This invokes a call to the ROS
    * master node, which keeps a registry of who is publishing and who
    * is subscribing.  Messages are passed to a callback function, here
-   * called chatterCallback.  subscribe() returns a Subscriber object that you
+   * called imageCallback.  subscribe() returns a Subscriber object that you
    * must hold on to until you want to unsubscribe.  When all copies of the Subscriber
    * object go out of scope, this callback will automatically be unsubscribed from
    * this topic.
@@ -162,7 +188,8 @@ int main(int argc, char **argv)
    * is the number of messages that will be buffered up before beginning to throw
    * away the oldest ones.
    */
-  ros::Subscriber sub = n.subscribe("/prius/front_camera/image_raw", 1, chatterCallback);
+  ImageStitchCallback imgcb;
+  ros::Subscriber sub = n.subscribe("/prius/front_camera/image_raw", 1, &ImageStitchCallback::imageCallback, &imgcb);
 
   /**
    * ros::spin() will enter a loop, pumping callbacks.  With this version, all
